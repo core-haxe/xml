@@ -9,10 +9,12 @@ class TestAll {
     public static function main() {
         var runner = new Runner();
         
-        runner.addCase(new TestBasic());
         /*
+        runner.addCase(new TestBasic());
         runner.addCase(new TestXPath());
+        */
         runner.addCase(new TestPositionInfo());
+        /*
         runner.addCase(new TestMalformed());
         */
 
