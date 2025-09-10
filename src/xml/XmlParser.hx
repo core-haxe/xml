@@ -23,20 +23,27 @@ enum XmlEvent {
 class XmlParseException extends Exception {
     public var line:Int;
     public var column:Int;
+    public var start:Int;
+    public var end:Int;
 
-    public function new(message:String, line:Int, column:Int) {
+    public function new(message:String, line:Int, column:Int, start:Int, end:Int) {
         super(message);
         this.line = line;
         this.column = column;
+        this.start = start;
+        this.end = end;
     }
 
     public override function toString():String {
+        if (start != -1 && end != -1) {
+            return 'XmlParseException at $line:$column ($start:$end) – $message'; 
+        }
         return 'XmlParseException at $line:$column – $message';
     }
 }
 
-inline function error(msg:String, line:Int, column:Int):Void {
-    throw new XmlParseException(msg, line, column);
+inline function error(msg:String, line:Int, column:Int, start:Int = -1, end:Int = -1):Void {
+    throw new XmlParseException(msg, line, column, start, end);
 }
 
 // ------------------------
@@ -426,7 +433,7 @@ class XmlParser {
                                     }
                                     var expected = stack[stack.length - 1];
                                     if (endName != expected) {
-                                        error('Mismatched closing tag </$endName>, expected </$expected>', line, column);
+                                        error('Mismatched closing tag </$endName>, expected </$expected>', line, column, tokenStartPos, currentPos + 1);
                                     }
 
                                     var parent = stack.length > 1 ? stack[stack.length - 2] : null;
@@ -446,7 +453,7 @@ class XmlParser {
                                     state = ParserStart;
 
                                 case _:
-                                    error('Unexpected token in closing tag', line, column);
+                                    error('Unexpected token in closing tag', line, column, tokenStartPos, currentPos + 1);
                             }
                     }
                 }
