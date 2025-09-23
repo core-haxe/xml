@@ -13,7 +13,8 @@ class XmlNode {
 
     public var positionInfo:XmlPositionInfo;
 
-    public function new() {
+    public function new(nodeName:String) {
+        this.nodeName = nodeName;
     }
 
     public static function fromString(s:String):XmlNode {
@@ -27,9 +28,8 @@ class XmlNode {
         XmlParser.parse(input, (e) -> {
             switch (e) {
                 case StartElement(name, parent, depth, position):
-                    var element = new XmlNode();
+                    var element = new XmlNode(name);
                     element.positionInfo = position;
-                    element.nodeName = name;
                     element.parent = currentElement;
                     if (element.parent != null) {
                         if (element.parent.children == null) {
