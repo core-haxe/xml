@@ -7,7 +7,6 @@ class AssertTools {
     public static function assertXmlEquals(expected:String, actual:XmlNode) {
         // we'll haxe std xml to verify the validity (recursively) of the xml
         var xml = Xml.parse(expected).firstElement();
-        trace(actual.toString());
         var same = assertXmlNodes(xml, actual);
         if (same) {
             // just to stop the "no assertions"

@@ -6,14 +6,11 @@ import utest.Assert;
 import utest.Async;
 import cases.AssertTools.*;
 
-using xml.XmlTools;
-
 class TestPositionInfo extends Test {
     function testBasic(async:Async) {
         var xmlString = "<root rootAttr1='rootValue1'>\n<child childAttr1='childValue1' childAttr2='childValue2'>text</child>\n</root>\n";
         var node = XmlNode.fromString(xmlString);
 
-        trace(node.positionInfo);
         Assert.equals(1, node.positionInfo.startLine);
         Assert.equals(2, node.positionInfo.startColumn);
         Assert.equals(1, node.positionInfo.endLine);
@@ -21,7 +18,6 @@ class TestPositionInfo extends Test {
         Assert.equals(1, node.positionInfo.startOffset);
         Assert.equals(5, node.positionInfo.endOffset);
 
-        trace(node.children[0].positionInfo);
         Assert.equals(2, node.children[0].positionInfo.startLine);
         Assert.equals(3, node.children[0].positionInfo.startColumn);
         Assert.equals(2, node.children[0].positionInfo.endLine);

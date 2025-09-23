@@ -370,7 +370,7 @@ class XmlParser {
                                         sb.addChar(c);
                                     }
 
-                                case Token.Character | Token.Space | Token.Tab | Token.NewLine:
+                                case Token.Character | Token.Space | Token.Tab | Token.NewLine | Token.ForwardSlash:
                                     if (sb.length == 0) {
                                         // mark the start of the attribute value content (first real char inside quotes)
                                         attrValueStartPos = currentPos;
