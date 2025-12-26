@@ -177,9 +177,9 @@ class XmlParser {
                                     state = ReadNodeName;
 
                                 case Token.ExclamationMark:
-                                    //sb.reset();
-                                    //commentDashCount = 0;
-                                    state = IgnoreWhitespace(ParserStart);
+                                    sb.reset();
+                                    commentDashCount = 0;
+                                    state = CommentText;
 
                                 case Token.QuestionMark:
                                     // TODO: PI
