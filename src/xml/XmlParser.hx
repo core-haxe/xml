@@ -177,9 +177,9 @@ class XmlParser {
                                     state = ReadNodeName;
 
                                 case Token.ExclamationMark:
-                                    sb.reset();
-                                    commentDashCount = 0;
-                                    state = CommentText;
+                                    //sb.reset();
+                                    //commentDashCount = 0;
+                                    state = IgnoreWhitespace(ParserStart);
 
                                 case Token.QuestionMark:
                                     // TODO: PI
@@ -203,7 +203,7 @@ class XmlParser {
 
                         case ReadNodeName:
                             switch (t) {
-                                case Token.Character:
+                                case Token.Character | Token.Dash:
                                     if (sb.length == 0) {
                                         // record start if not already (covers cases where name started here)
                                         nameStartPos = currentPos;
@@ -275,7 +275,7 @@ class XmlParser {
 
                         case NodeAttributes:
                             switch (t) {
-                                case Token.Character:
+                                case Token.Character | Token.Dash:
                                     sb.reset();
                                     // start of attribute name
                                     attrNameStartPos = currentPos;
@@ -308,7 +308,7 @@ class XmlParser {
 
                         case AttrName:
                             switch (t) {
-                                case Token.Character:
+                                case Token.Character | Token.Dash:
                                     if (sb.length == 0) {
                                         attrNameStartPos = currentPos;
                                         attrNameStartLine = line;
@@ -375,7 +375,7 @@ class XmlParser {
                                         sb.addChar(c);
                                     }
 
-                                case Token.Character | Token.Space | Token.Tab | Token.NewLine | Token.ForwardSlash:
+                                case Token.Character | Token.Space | Token.Tab | Token.NewLine | Token.ForwardSlash | Token.Dash:
                                     if (sb.length == 0) {
                                         // mark the start of the attribute value content (first real char inside quotes)
                                         attrValueStartPos = currentPos;
@@ -422,7 +422,7 @@ class XmlParser {
 
                         case EndNodeName:
                             switch (t) {
-                                case Token.Character:
+                                case Token.Character | Token.Dash:
                                     if (sb.length == 0) {
                                         // first char of end tag name
                                         nameStartPos = currentPos;

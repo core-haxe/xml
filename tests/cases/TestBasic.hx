@@ -26,4 +26,27 @@ class TestBasic extends Test {
 
         async.done();
     }
+
+    function testNoChildren(async:Async) {
+        var xmlString = "
+            <root rootAttr1='rootValue1'>
+            </root>
+        ";
+        var node = XmlNode.fromString(xmlString);
+        assertXmlEquals(xmlString, node);
+
+        async.done();
+    }
+
+    function testChildWithHyphen(async:Async) {
+        var xmlString = "
+            <root rootAttr1='rootValue1'>
+                <child-foo>bob</child-foo>
+            </root>
+        ";
+        var node = XmlNode.fromString(xmlString);
+        assertXmlEquals(xmlString, node);
+
+        async.done();
+    }
 }
