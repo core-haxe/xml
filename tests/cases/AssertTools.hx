@@ -3,6 +3,8 @@ package cases;
 import utest.Assert;
 import xml.XmlNode;
 
+using StringTools;
+
 class AssertTools {
     public static function assertXmlEquals(expected:String, actual:XmlNode) {
         // we'll haxe std xml to verify the validity (recursively) of the xml
@@ -26,8 +28,11 @@ class AssertTools {
         if (xml.firstChild() != null && xml.firstChild().nodeType == PCData) {
             nodeValue = xml.firstChild().nodeValue;
         }
+        if (nodeValue != null && nodeValue.trim().length == 0) {
+            nodeValue = null;
+        }
         if (nodeValue != node.nodeValue) {
-            Assert.fail("node value mismatch");
+            Assert.fail('node value mismatch on "${node.nodeName}" ("${nodeValue}" != "${node.nodeValue}")');
             return false;
         }
 

@@ -30,7 +30,8 @@ class XmlStringBuf {
 
     public function reset() {
         #if js
-        @:privateAccess buffer.offset = 0;
+        //@:privateAccess buffer.offset = 0;
+        buffer = new StringBuf();
         #else
         buffer = new StringBuf();
         #end

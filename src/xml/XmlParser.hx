@@ -12,7 +12,8 @@ enum XmlEvent {
     StartElement(name:String, parent:String, depth:Int, position:XmlPositionInfo);
     EndElement(name:String, parent:String, depth:Int, position:XmlPositionInfo);
     TextNode(text:String, parent:String, depth:Int, position:XmlPositionInfo);
-    Comment(text:String, parent:String, depth:Int, position:XmlPositionInfo);
+    StartComment(parent:String, depth:Int, position:XmlPositionInfo);
+    EndComment(parent:String, depth:Int, position:XmlPositionInfo);
     ProcessingInstruction(target:String, data:String, parent:String, depth:Int, position:XmlPositionInfo);
     Attribute(name:String, value:String, parent:String, depth:Int, position:XmlPositionInfo);
 }
@@ -61,6 +62,7 @@ private enum abstract Token(Int) from Int to Int {
     var ExclamationMark:Int;
     var QuestionMark:Int;
     var ForwardSlash:Int;
+    var Dash:Int;
     var Character:Int;
 }
 
@@ -74,6 +76,7 @@ private enum State {
     AttrValue(quote:Int);
     NodeText;
     EndNodeName;
+    CommentText;
 }
 
 // ------------------------
@@ -122,6 +125,8 @@ class XmlParser {
         var textStartPos:Int = -1;
         var textStartLine:Int = 1;
         var textStartColumn:Int = 0;
+
+        var commentDashCount:Int = 0;
 
         while (!eof) {
             try {
@@ -172,9 +177,9 @@ class XmlParser {
                                     state = ReadNodeName;
 
                                 case Token.ExclamationMark:
-                                    // TODO: comments/PI
-                                    // set token start at the '!' (tokenStartPos already set when we saw '<')
-                                    state = IgnoreWhitespace(ParserStart);
+                                    sb.reset();
+                                    commentDashCount = 0;
+                                    state = CommentText;
 
                                 case Token.QuestionMark:
                                     // TODO: PI
@@ -455,6 +460,47 @@ class XmlParser {
                                 case _:
                                     error('Unexpected token in closing tag', line, column, tokenStartPos, currentPos + 1);
                             }
+                        case CommentText:
+                            if (commentDashCount < 2) {
+                                if (t != Token.Dash) {
+                                    error('Invalid comment start, expected <!--', line, column);
+                                }
+                                commentDashCount++;
+
+                                if (commentDashCount == 2) {
+                                    sb.reset();
+                                    var parent = stack.length > 0 ? stack[stack.length - 1] : null;
+                                    var depth = stack.length;
+                                    onEvent(StartComment(parent, depth, {
+                                        startLine: tokenStartLine,
+                                        startColumn: tokenStartColumn,
+                                        endLine: line,
+                                        endColumn: column,
+                                        startOffset: tokenStartPos,
+                                        endOffset: currentPos + 1
+                                    }));
+                                }
+                            } else {
+                                sb.addChar(c);
+                                if (t == Token.Dash) { // were going to reuse the comment dash count since haxe StringBuf doesnt have any "get" functions that dont involve expensive (and memory hungry) string conversions
+                                    commentDashCount++;
+                                } else if (commentDashCount == 4 && t == Token.GreaterThan) {
+                                    var parent = stack.length > 0 ? stack[stack.length - 1] : null;
+                                    var depth = stack.length;
+                                    onEvent(EndComment(parent, depth, {
+                                        startLine: tokenStartLine,
+                                        startColumn: tokenStartColumn,
+                                        endLine: line,
+                                        endColumn: column,
+                                        startOffset: tokenStartPos,
+                                        endOffset: currentPos + 1
+                                    }));
+                                    sb.reset();
+                                    state = ParserStart;
+                                } else {
+                                    commentDashCount = 2;
+                                }
+                            }
                     }
                 }
 
@@ -504,5 +550,6 @@ class XmlParser {
         tokenMap.set('!'.code, Token.ExclamationMark);
         tokenMap.set('?'.code, Token.QuestionMark);
         tokenMap.set('/'.code, Token.ForwardSlash);
+        tokenMap.set('-'.code, Token.Dash);
     }
 }

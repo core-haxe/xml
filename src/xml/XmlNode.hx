@@ -49,7 +49,8 @@ class XmlNode {
                     currentElement.attributes.set(name, value);
                 case TextNode(text, parent, depth, position):    
                     currentElement.nodeValue = text;
-                case Comment(text, parent, depth, position):
+                case StartComment(parent, depth, position):
+                case EndComment(parent, depth, position):
                 case ProcessingInstruction(target, data, parent, depth, position):    
             }
         });
