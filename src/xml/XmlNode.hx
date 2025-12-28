@@ -7,6 +7,7 @@ class XmlNode {
     public var parent:XmlNode = null;
     public var children:Array<XmlNode> = [];
     public var attributes:Map<String, String> = [];
+    public var attributePositions:Map<String, XmlPositionInfo> = [];
 
     public var nodeName:String;
     public var nodeValue:String;
@@ -47,6 +48,7 @@ class XmlNode {
                         currentElement.attributes = [];
                     }
                     currentElement.attributes.set(name, value);
+                    currentElement.attributePositions.set(name, position);
                 case TextNode(text, parent, depth, position):    
                     currentElement.nodeValue = text;
                 case StartComment(parent, depth, position):
