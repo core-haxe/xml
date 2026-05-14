@@ -15,4 +15,22 @@ class TestEdgeCases extends Test {
 
         async.done();
     }
+
+    function testAllowedPunctuationInSingleQuotedAttribute(async:Async) {
+        var xmlString = "<root attr='a \"quoted\" value > != ? / - : ; , . [](){} #$%^*+|~`@'/>";
+        var node = XmlNode.fromString(xmlString);
+        assertXmlEquals(xmlString, node);
+        Assert.equals("a \"quoted\" value > != ? / - : ; , . [](){} #$%^*+|~`@", node.attributes.get("attr"));
+
+        async.done();
+    }
+
+    function testAllowedPunctuationInDoubleQuotedAttribute(async:Async) {
+        var xmlString = "<root attr=\"Bob's value > != ? / - : ; , . [](){} #$%^*+|~`@\"/>";
+        var node = XmlNode.fromString(xmlString);
+        assertXmlEquals(xmlString, node);
+        Assert.equals("Bob's value > != ? / - : ; , . [](){} #$%^*+|~`@", node.attributes.get("attr"));
+
+        async.done();
+    }
 }

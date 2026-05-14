@@ -93,7 +93,7 @@ class TestMalformed extends Test {
             XmlNode.fromString(xmlString);
             Assert.fail();
         } catch (e:XmlParseException) {
-            Assert.equals("Unexpected token in attribute value", e.message);
+            Assert.equals("Unterminated attribute value", e.message);
             async.done();
         }
     }

@@ -375,7 +375,13 @@ class XmlParser {
                                         sb.addChar(c);
                                     }
 
-                                case Token.Character | Token.Space | Token.Tab | Token.NewLine | Token.ForwardSlash | Token.Dash:
+                                case Token.LessThan:
+                                    error('Unexpected token in attribute value', line, column);
+
+                                case _:
+                                    if (q == 0) {
+                                        error('Unexpected token in attribute value', line, column);
+                                    }
                                     if (sb.length == 0) {
                                         // mark the start of the attribute value content (first real char inside quotes)
                                         attrValueStartPos = currentPos;
@@ -383,9 +389,6 @@ class XmlParser {
                                         attrValueStartColumn = column;
                                     }
                                     sb.addChar(c);
-
-                                case _:
-                                    error('Unexpected token in attribute value', line, column);
                             }
 
                         case NodeText:
