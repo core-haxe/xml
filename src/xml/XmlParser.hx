@@ -346,7 +346,7 @@ class XmlParser {
                                         state = AttrValue(c); // remember which quote char was used
                                     } else if (q == c) {
                                         // closing quote -> attribute finished.
-                                        attrValue = sb.toString();
+                                        attrValue = decodeEntities(sb.toString());
                                         var parent = stack.length > 0 ? stack[stack.length - 1] : null;
                                         var depth = stack.length - 1;
 
@@ -376,7 +376,16 @@ class XmlParser {
                                     }
 
                                 case Token.LessThan:
-                                    error('Unexpected token in attribute value', line, column);
+                                    if (q == 0) {
+                                        error('Unexpected token in attribute value', line, column);
+                                    }
+                                    if (sb.length == 0) {
+                                        // mark the start of the attribute value content (first real char inside quotes)
+                                        attrValueStartPos = currentPos;
+                                        attrValueStartLine = line;
+                                        attrValueStartColumn = column;
+                                    }
+                                    sb.addChar(c);
 
                                 case _:
                                     if (q == 0) {
@@ -399,6 +408,7 @@ class XmlParser {
                                     var depth = stack.length - 1;
                                     var s = StringTools.trim(sb.toString());
                                     if (s.length > 0) {
+                                        s = decodeEntities(s);
                                         // text start was recorded when first char appended; if not recorded (unlikely), fallback to currentPos - sb.length
                                         var startOff = textStartPos >= 0 ? textStartPos : (currentPos - sb.length);
                                         onEvent(TextNode(s, parent, depth, {
@@ -536,6 +546,98 @@ class XmlParser {
         }
 
         return tokenMap.get(c);
+    }
+
+    private static function decodeEntities(value:String):String {
+        if (value == null || value.indexOf("&") == -1) {
+            return value;
+        }
+
+        var sb = new StringBuf();
+        var pos = 0;
+        while (pos < value.length) {
+            var ch = value.charAt(pos);
+            if (ch != "&") {
+                sb.add(ch);
+                pos++;
+                continue;
+            }
+
+            var semi = value.indexOf(";", pos + 1);
+            if (semi == -1) {
+                sb.add(ch);
+                pos++;
+                continue;
+            }
+
+            var entity = value.substring(pos + 1, semi);
+            var decoded = decodeEntity(entity);
+            if (decoded == null) {
+                sb.add(value.substring(pos, semi + 1));
+            } else {
+                sb.add(decoded);
+            }
+            pos = semi + 1;
+        }
+
+        return sb.toString();
+    }
+
+    private static function decodeEntity(entity:String):String {
+        return switch (entity) {
+            case "lt":
+                "<";
+            case "gt":
+                ">";
+            case "amp":
+                "&";
+            case "quot":
+                '"';
+            case "apos":
+                "'";
+            case _:
+                if (StringTools.startsWith(entity, "#x") || StringTools.startsWith(entity, "#X")) {
+                    decodeNumericEntity(entity.substr(2), 16);
+                } else if (StringTools.startsWith(entity, "#")) {
+                    decodeNumericEntity(entity.substr(1), 10);
+                } else {
+                    null;
+                }
+        }
+    }
+
+    private static function decodeNumericEntity(digits:String, radix:Int):String {
+        if (digits == null || digits.length == 0) {
+            return null;
+        }
+
+        var code = 0;
+        for (i in 0...digits.length) {
+            var digit = numericEntityDigit(digits.charCodeAt(i));
+            if (digit < 0 || digit >= radix) {
+                return null;
+            }
+            code = (code * radix) + digit;
+        }
+
+        if (code <= 0) {
+            return null;
+        }
+
+        return String.fromCharCode(code);
+    }
+
+    private static function numericEntityDigit(code:Int):Int {
+        if (code >= "0".code && code <= "9".code) {
+            return code - "0".code;
+        }
+        if (code >= "a".code && code <= "f".code) {
+            return code - "a".code + 10;
+        }
+        if (code >= "A".code && code <= "F".code) {
+            return code - "A".code + 10;
+        }
+        return -1;
     }
 
     private static var tokenMap:Map<Int, Token>;

@@ -33,4 +33,39 @@ class TestEdgeCases extends Test {
 
         async.done();
     }
+
+    function testDecodesStandardEntitiesInAttribute(async:Async) {
+        var xmlString = "<root attr=\"a &lt; b &amp;&amp; b &gt; c &quot;quoted&quot; &apos;apostrophe&apos;\"/>";
+        var node = XmlNode.fromString(xmlString);
+        assertXmlEquals(xmlString, node);
+        Assert.equals("a < b && b > c \"quoted\" 'apostrophe'", node.attributes.get("attr"));
+
+        async.done();
+    }
+
+    function testDecodesNumericEntitiesInAttribute(async:Async) {
+        var xmlString = "<root attr=\"&#60;&#x3C;&#62;&#x3E;\"/>";
+        var node = XmlNode.fromString(xmlString);
+        assertXmlEquals(xmlString, node);
+        Assert.equals("<<>>", node.attributes.get("attr"));
+
+        async.done();
+    }
+
+    function testDecodesEntitiesInText(async:Async) {
+        var xmlString = "<root>Tom &amp; Jerry &lt;tag&gt;</root>";
+        var node = XmlNode.fromString(xmlString);
+        assertXmlEquals(xmlString, node);
+        Assert.equals("Tom & Jerry <tag>", node.nodeValue);
+
+        async.done();
+    }
+
+    function testAllowsRawLessThanInQuotedAttribute(async:Async) {
+        var xmlString = "<root attr=\"if (item.age < 99) item.age += 5\"/>";
+        var node = XmlNode.fromString(xmlString);
+        Assert.equals("if (item.age < 99) item.age += 5", node.attributes.get("attr"));
+
+        async.done();
+    }
 }
