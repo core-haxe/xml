@@ -561,19 +561,51 @@ class XmlParser {
             return value;
         }
 
-        var sb = new StringBuf();
         var pos = 0;
 
+        #if js
+        var parts:Array<String> = [];
+
         while (amp != -1) {
-            // Copy the ordinary text before this entity in one operation.
+            if (amp > pos) {
+                parts.push(value.substring(pos, amp));
+            }
+
+            var semi = value.indexOf(";", amp + 1);
+            if (semi == -1) {
+                parts.push(value.substr(amp));
+                return parts.join("");
+            }
+
+            var entity = value.substring(amp + 1, semi);
+            var decoded = decodeEntity(entity);
+
+            if (decoded == null) {
+                // Preserve unknown or invalid references.
+                parts.push(value.substring(amp, semi + 1));
+            } else {
+                parts.push(decoded);
+            }
+
+            pos = semi + 1;
+            amp = value.indexOf("&", pos);
+        }
+
+        if (pos < value.length) {
+            parts.push(value.substr(pos));
+        }
+
+        return parts.join("");
+        #else
+        var sb = new StringBuf();
+
+        while (amp != -1) {
             if (amp > pos) {
                 sb.addSub(value, pos, amp - pos);
             }
 
             var semi = value.indexOf(";", amp + 1);
-
             if (semi == -1) {
-                // No remaining entity can be terminated.
                 sb.addSub(value, amp);
                 return sb.toString();
             }
@@ -582,7 +614,6 @@ class XmlParser {
             var decoded = decodeEntity(entity);
 
             if (decoded == null) {
-                // Preserve unknown or invalid references exactly as supplied.
                 sb.addSub(value, amp, semi - amp + 1);
             } else {
                 sb.add(decoded);
@@ -592,12 +623,12 @@ class XmlParser {
             amp = value.indexOf("&", pos);
         }
 
-        // Copy any ordinary text after the final entity.
         if (pos < value.length) {
             sb.addSub(value, pos);
         }
 
         return sb.toString();
+        #end
     }
 
     private static function decodeEntity(entity:String):String {

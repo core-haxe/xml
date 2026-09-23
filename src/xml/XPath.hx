@@ -83,7 +83,9 @@ class XPath {
                 var idx = pos - 1;
                 if (idx >= 0 && idx < matches.length) next.push(matches[idx]);
             } else {
-                next = next.concat(matches);
+                for (match in matches) {
+                    next.push(match);
+                }
             }
         }
         return xpathRecursive(parts, index + 1, next);

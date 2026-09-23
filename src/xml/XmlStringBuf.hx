@@ -3,6 +3,10 @@ package xml;
 import haxe.io.Bytes;
 
 class XmlStringBuf {
+    #if js
+    private var decoder = new js.html.TextDecoder("utf-8");
+    #end
+
     private var buffer:Bytes;
     private var byteLength:Int = 0;
 
@@ -35,7 +39,12 @@ class XmlStringBuf {
     }
 
     public function toString():String {
+        #if js
+        var view = new js.lib.Uint8Array(buffer.getData(), 0, byteLength);
+        return decoder.decode(view);
+        #else
         return buffer.getString(0, byteLength);
+        #end
     }
 
     public function reset():Void {
