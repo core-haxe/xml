@@ -15,6 +15,7 @@ class TestAll {
         runner.addCase(new TestXPath());
         runner.addCase(new TestEdgeCases());
         runner.addCase(new TestComments());
+        runner.addCase(new TestMemory());
 
         Report.create(runner, SuccessResultsDisplayMode.AlwaysShowSuccessResults, HeaderDisplayMode.NeverShowHeader);
         runner.run();

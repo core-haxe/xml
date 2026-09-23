@@ -83,7 +83,9 @@ private enum State {
 // Parser
 // ------------------------
 class XmlParser {
-    public static function parse(input:Input, onEvent:XmlEvent->Void):Void {
+    public static function parse(input:Input, onEvent:XmlEvent->Void, trackPositions:Null<Bool> = null):Void {
+        var positionsEnabled:Bool = resolveTrackPositions(trackPositions);
+
         var eof = false;
         var state:State = ParserStart;
         var sb = new XmlStringBuf();
@@ -93,6 +95,7 @@ class XmlParser {
         var attrValue = "";
         var stack = new Array<String>(); // names of open nodes
         var buffer = Bytes.alloc(4096);
+        var bufferData = buffer.getData();
 
         // line/column as before
         var line:Int = 1;
@@ -134,7 +137,7 @@ class XmlParser {
 
                 for (i in 0...n) {
                     var currentPos = absPos + i; // 0-based index of this character in the whole stream
-                    var c = Bytes.fastGet(buffer.getData(), i);
+                    var c = Bytes.fastGet(bufferData, i);
                     var t = toToken(c);
 
                     // save last char's line/column
@@ -222,7 +225,7 @@ class XmlParser {
 
                                     var parent = stack.length > 0 ? stack[stack.length - 1] : null;
                                     var depth = stack.length;
-                                    onEvent(StartElement(nodeName, parent, depth, {
+                                    onEvent(StartElement(nodeName, parent, depth, !positionsEnabled ? null : {
                                         startLine: nameStartLine,
                                         startColumn: nameStartColumn,
                                         endLine: lastLine,
@@ -247,7 +250,7 @@ class XmlParser {
 
                                     var parent = stack.length > 0 ? stack[stack.length - 1] : null;
                                     var depth = stack.length;
-                                    onEvent(StartElement(nodeName, parent, depth, {
+                                    onEvent(StartElement(nodeName, parent, depth, !positionsEnabled ? null : {
                                         startLine: nameStartLine,
                                         startColumn: nameStartColumn,
                                         endLine: lastLine,
@@ -258,7 +261,7 @@ class XmlParser {
                                     // for a self-closing tag we also emit EndElement right away;
                                     // make EndElement range be the small self-closing marker (from '<' up to '/'?),
                                     // but here we'll use the whole tag start (name) to the current char (exclusive)
-                                    onEvent(EndElement(nodeName, parent, depth, {
+                                    onEvent(EndElement(nodeName, parent, depth, !positionsEnabled ? null : {
                                         startLine: nameStartLine,
                                         startColumn: nameStartColumn,
                                         endLine: lastLine,
@@ -291,7 +294,7 @@ class XmlParser {
                                     // self-closing shorthand: emit EndElement for the node (range from last recorded token start to current char)
                                     var parent = stack.length > 0 ? stack[stack.length - 1] : null;
                                     var depth = stack.length;
-                                    onEvent(EndElement(nodeName, parent, depth, {
+                                    onEvent(EndElement(nodeName, parent, depth, !positionsEnabled ? null : {
                                         startLine: tokenStartLine,
                                         startColumn: tokenStartColumn,
                                         endLine: line,
@@ -354,7 +357,7 @@ class XmlParser {
                                         var attrRangeStart = attrNameStartPos;
                                         var attrRangeEndExclusive = currentPos + 1; // include closing quote
 
-                                        onEvent(Attribute(attrName, attrValue, parent, depth, {
+                                        onEvent(Attribute(attrName, attrValue, parent, depth, !positionsEnabled ? null : {
                                             startLine: attrNameStartLine,
                                             startColumn: attrNameStartColumn,
                                             endLine: lastLine,
@@ -411,7 +414,7 @@ class XmlParser {
                                         s = decodeEntities(s);
                                         // text start was recorded when first char appended; if not recorded (unlikely), fallback to currentPos - sb.length
                                         var startOff = textStartPos >= 0 ? textStartPos : (currentPos - sb.length);
-                                        onEvent(TextNode(s, parent, depth, {
+                                        onEvent(TextNode(s, parent, depth, !positionsEnabled ? null : {
                                             startLine: textStartLine,
                                             startColumn: textStartColumn,
                                             endLine: lastLine,
@@ -458,7 +461,7 @@ class XmlParser {
                                     var depth = stack.length - 1;
 
                                     // closing tag range: from the '<' that started the NodeStart (tokenStartPos) up to the '>' inclusive
-                                    onEvent(EndElement(endName, parent, depth, {
+                                    onEvent(EndElement(endName, parent, depth, !positionsEnabled ? null : {
                                         startLine: tokenStartLine,
                                         startColumn: tokenStartColumn,
                                         endLine: line,
@@ -484,7 +487,7 @@ class XmlParser {
                                     sb.reset();
                                     var parent = stack.length > 0 ? stack[stack.length - 1] : null;
                                     var depth = stack.length;
-                                    onEvent(StartComment(parent, depth, {
+                                    onEvent(StartComment(parent, depth, !positionsEnabled ? null : {
                                         startLine: tokenStartLine,
                                         startColumn: tokenStartColumn,
                                         endLine: line,
@@ -494,13 +497,13 @@ class XmlParser {
                                     }));
                                 }
                             } else {
-                                sb.addChar(c);
+                                //sb.addChar(c);
                                 if (t == Token.Dash) { // were going to reuse the comment dash count since haxe StringBuf doesnt have any "get" functions that dont involve expensive (and memory hungry) string conversions
                                     commentDashCount++;
                                 } else if (commentDashCount == 4 && t == Token.GreaterThan) {
                                     var parent = stack.length > 0 ? stack[stack.length - 1] : null;
                                     var depth = stack.length;
-                                    onEvent(EndComment(parent, depth, {
+                                    onEvent(EndComment(parent, depth, !positionsEnabled ? null : {
                                         startLine: tokenStartLine,
                                         startColumn: tokenStartColumn,
                                         endLine: line,
@@ -549,35 +552,49 @@ class XmlParser {
     }
 
     private static function decodeEntities(value:String):String {
-        if (value == null || value.indexOf("&") == -1) {
+        if (value == null) {
+            return value;
+        }
+
+        var amp = value.indexOf("&");
+        if (amp == -1) {
             return value;
         }
 
         var sb = new StringBuf();
         var pos = 0;
-        while (pos < value.length) {
-            var ch = value.charAt(pos);
-            if (ch != "&") {
-                sb.add(ch);
-                pos++;
-                continue;
+
+        while (amp != -1) {
+            // Copy the ordinary text before this entity in one operation.
+            if (amp > pos) {
+                sb.addSub(value, pos, amp - pos);
             }
 
-            var semi = value.indexOf(";", pos + 1);
+            var semi = value.indexOf(";", amp + 1);
+
             if (semi == -1) {
-                sb.add(ch);
-                pos++;
-                continue;
+                // No remaining entity can be terminated.
+                sb.addSub(value, amp);
+                return sb.toString();
             }
 
-            var entity = value.substring(pos + 1, semi);
+            var entity = value.substring(amp + 1, semi);
             var decoded = decodeEntity(entity);
+
             if (decoded == null) {
-                sb.add(value.substring(pos, semi + 1));
+                // Preserve unknown or invalid references exactly as supplied.
+                sb.addSub(value, amp, semi - amp + 1);
             } else {
                 sb.add(decoded);
             }
+
             pos = semi + 1;
+            amp = value.indexOf("&", pos);
+        }
+
+        // Copy any ordinary text after the final entity.
+        if (pos < value.length) {
+            sb.addSub(value, pos);
         }
 
         return sb.toString();
@@ -686,5 +703,15 @@ class XmlParser {
         tokenMap.set('?'.code, Token.QuestionMark);
         tokenMap.set('/'.code, Token.ForwardSlash);
         tokenMap.set('-'.code, Token.Dash);
+    }
+
+    public static inline function resolveTrackPositions(value:Null<Bool>):Bool {
+        #if xml_no_positions
+        var defaultValue = false;
+        #else
+        var defaultValue = true;
+        #end
+
+        return value != null ? value : defaultValue;
     }
 }

@@ -53,14 +53,14 @@ class XPath {
         }
 
         var pos:Int = -1;
-        var filters:Array<String> = [];
+        var filters:Array<Array<String>> = [];
 
         // separate numeric positional filter vs attribute filters
         for (p in predicates) {
             if (~/^\d+$/.match(p)) {
                 pos = Std.parseInt(p);
             } else {
-                filters.push(p);
+                filters.push(tokenize(p));
             }
         }
 
@@ -71,7 +71,7 @@ class XPath {
                 if (name == "*" || c.nodeName == name) {
                     var ok = true;
                     for (f in filters) {
-                        if (!evalFilter(f, c)) {
+                        if (!evalTokens(f, c)) {
                             ok = false;
                             break;
                         }
@@ -87,12 +87,6 @@ class XPath {
             }
         }
         return xpathRecursive(parts, index + 1, next);
-    }
-
-    // Evaluate a boolean filter like "@id='bob' && @class='big'"
-    private static function evalFilter(expr:String, node:XmlNode):Bool {
-        var tokens = tokenize(expr);
-        return evalTokens(tokens, node);
     }
 
     private static function tokenize(expr:String):Array<String> {

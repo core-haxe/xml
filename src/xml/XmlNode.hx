@@ -7,29 +7,40 @@ class XmlNode {
     public var parent:XmlNode = null;
     public var children:Array<XmlNode> = [];
     public var attributes:Map<String, String> = [];
-    public var attributePositions:Map<String, XmlPositionInfo> = [];
+    public var attributePositions:Map<String, XmlPositionInfo> = null;
 
     public var nodeName:String;
     public var nodeValue:String;
 
-    public var positionInfo:XmlPositionInfo;
+    public var positionInfo:XmlPositionInfo = null;
 
-    public function new(nodeName:String) {
+    public function new(nodeName:String, trackPositions:Null<Bool> = null) {
         this.nodeName = nodeName;
+        if (XmlParser.resolveTrackPositions(trackPositions)) {
+            this.attributePositions = [];
+        }
     }
 
-    public static function fromString(s:String):XmlNode {
-        var input = new StringInput(s);
-        return parse(input);
+    public static function fromString(s:String, trackPositions:Null<Bool> = null):XmlNode {
+        #if js
+        if (js.Syntax.code("typeof TextEncoder !== 'undefined'")) {
+            var encoded = new js.html.TextEncoder().encode(s);
+            var bytes = haxe.io.Bytes.ofData(encoded.buffer);
+            return parse(new haxe.io.BytesInput(bytes), trackPositions);
+        }
+        #end
+
+        return parse(new StringInput(s), trackPositions);
     }
 
-    public static function parse(input:Input):XmlNode {
+    public static function parse(input:Input, trackPositions:Null<Bool> = null):XmlNode {
+        var positionsEnabled:Bool = XmlParser.resolveTrackPositions(trackPositions);
         var currentElement:XmlNode = null;
 
         XmlParser.parse(input, (e) -> {
             switch (e) {
                 case StartElement(name, parent, depth, position):
-                    var element = new XmlNode(name);
+                    var element = new XmlNode(name, positionsEnabled);
                     element.positionInfo = position;
                     element.parent = currentElement;
                     if (element.parent != null) {
@@ -48,14 +59,16 @@ class XmlNode {
                         currentElement.attributes = [];
                     }
                     currentElement.attributes.set(name, value);
-                    currentElement.attributePositions.set(name, position);
+                    if (currentElement.attributePositions != null && position != null) {
+                        currentElement.attributePositions.set(name, position);
+                    }                    
                 case TextNode(text, parent, depth, position):    
                     currentElement.nodeValue = text;
                 case StartComment(parent, depth, position):
                 case EndComment(parent, depth, position):
                 case ProcessingInstruction(target, data, parent, depth, position):    
             }
-        });
+        }, positionsEnabled);
 
         return currentElement;
     }
