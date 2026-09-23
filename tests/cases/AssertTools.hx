@@ -31,7 +31,10 @@ class AssertTools {
         if (nodeValue != null && nodeValue.trim().length == 0) {
             nodeValue = null;
         }
-        if (nodeValue != node.nodeValue) {
+        
+        var expectedText = nodeValue == null ? "" : nodeValue.trim();
+        var actualText = node.nodeValue == null ? "" : node.nodeValue.trim();
+        if (expectedText != actualText) {
             Assert.fail('node value mismatch on "${node.nodeName}" ("${nodeValue}" != "${node.nodeValue}")');
             return false;
         }

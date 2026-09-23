@@ -32,9 +32,7 @@ class TestMemory extends Test {
         Sys.println("    " + MemoryUsage.delta(before, after) + " (gc: " + gcRan1 + ")");
         Sys.println("    " + MemoryUsage.delta(before, afterGc) + " (gc: " + gcRan2 + ")");
 
-        // TODO: didnt work, we only care about memory stats at the moment, but this should be fixed
-        //assertXmlEquals(xmlString, node);
-        Assert.isTrue(true);
+        assertXmlEquals(xmlString, node);
 
         async.done();
     }
@@ -62,9 +60,7 @@ class TestMemory extends Test {
         Sys.println("    " + MemoryUsage.delta(before, after) + " (gc: " + gcRan1 + ")");
         Sys.println("    " + MemoryUsage.delta(before, afterGc) + " (gc: " + gcRan2 + ")");
 
-        // TODO: didnt work, we only care about memory stats at the moment, but this should be fixed
-        //assertXmlEquals(xmlString, node);
-        Assert.isTrue(true);
+        assertXmlEquals(xmlString, node);
 
         async.done();
     }
