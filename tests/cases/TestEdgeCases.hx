@@ -68,4 +68,53 @@ class TestEdgeCases extends Test {
 
         async.done();
     }
+
+    function testLiteralUnicodeInAttributesAndText(async:Async) {
+        var expected = "météo · € 漢 😀";
+        var node = XmlNode.fromString('<root value="météo · € 漢 😀">météo · € 漢 😀</root>');
+        Assert.equals(expected, node.attributes.get("value"));
+        Assert.equals(expected, node.nodeValue);
+
+        async.done();
+    }
+
+    function testDecimalUnicodeEntitiesInAttributesAndText(async:Async) {
+        var expected = "météo · € 漢 😀";
+        var encoded = "m&#233;t&#233;o &#183; &#8364; &#28450; &#128512;";
+        var node = XmlNode.fromString('<root value="' + encoded + '">' + encoded + '</root>');
+        Assert.equals(expected, node.attributes.get("value"));
+        Assert.equals(expected, node.nodeValue);
+
+        async.done();
+    }
+
+    function testHexUnicodeEntitiesInAttributesAndText(async:Async) {
+        var expected = "météo · € 漢 😀";
+        var encoded = "m&#xE9;t&#xE9;o &#xB7; &#x20AC; &#x6F22; &#x1F600;";
+        var node = XmlNode.fromString('<root value="' + encoded + '">' + encoded + '</root>');
+        Assert.equals(expected, node.attributes.get("value"));
+        Assert.equals(expected, node.nodeValue);
+
+        async.done();
+    }
+
+    function testUtf8TextAcrossReadBoundary(async:Async) {
+        var prefix = "<root>";
+        var padding = StringTools.lpad("", "a", 4095 - prefix.length);
+        var expected = padding + "é";
+        var node = XmlNode.fromString(prefix + expected + "</root>");
+        Assert.equals(expected, node.nodeValue);
+
+        async.done();
+    }
+
+    function testUtf8AttributeAcrossReadBoundary(async:Async) {
+        var prefix = '<root value="';
+        var padding = StringTools.lpad("", "a", 4095 - prefix.length);
+        var expected = padding + "é";
+        var node = XmlNode.fromString(prefix + expected + '"/>');
+        Assert.equals(expected, node.attributes.get("value"));
+
+        async.done();
+    }
 }

@@ -617,14 +617,44 @@ class XmlParser {
             if (digit < 0 || digit >= radix) {
                 return null;
             }
+
             code = (code * radix) + digit;
+
+            // Check each step, before a long reference can overflow.
+            if (code > 0x10FFFF) {
+                return null;
+            }
         }
 
-        if (code <= 0) {
+        // Zero and surrogate code points cannot be encoded here.
+        if (code <= 0 || (code >= 0xD800 && code <= 0xDFFF)) {
             return null;
         }
 
-        return String.fromCharCode(code);
+        var bytes = Bytes.alloc(4);
+        var size:Int;
+
+        if (code < 0x80) {
+            bytes.set(0, code);
+            size = 1;
+        } else if (code < 0x800) {
+            bytes.set(0, 0xC0 | (code >> 6));
+            bytes.set(1, 0x80 | (code & 0x3F));
+            size = 2;
+        } else if (code < 0x10000) {
+            bytes.set(0, 0xE0 | (code >> 12));
+            bytes.set(1, 0x80 | ((code >> 6) & 0x3F));
+            bytes.set(2, 0x80 | (code & 0x3F));
+            size = 3;
+        } else {
+            bytes.set(0, 0xF0 | (code >> 18));
+            bytes.set(1, 0x80 | ((code >> 12) & 0x3F));
+            bytes.set(2, 0x80 | ((code >> 6) & 0x3F));
+            bytes.set(3, 0x80 | (code & 0x3F));
+            size = 4;
+        }
+
+        return bytes.getString(0, size);
     }
 
     private static function numericEntityDigit(code:Int):Int {
