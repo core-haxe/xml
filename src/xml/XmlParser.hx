@@ -477,9 +477,8 @@ class XmlParser {
                                 if (sb.length > 0) {
                                     var parent = stack.length > 0 ? stack[stack.length - 1] : null;
                                     var depth = stack.length - 1;
-                                    var s = StringTools.trim(sb.toString());
+                                    var s = StringTools.trim(decodeEntities(sb.toString()));
                                     if (s.length > 0) {
-                                        s = decodeEntities(s);
                                         // text start was recorded when first char appended; if not recorded (unlikely), fallback to currentPos - sb.length
                                         var startOff = textStartPos >= 0 ? textStartPos : (currentPos - sb.length);
                                         onEvent(TextNode(s, parent, depth, !positionsEnabled ? null : {

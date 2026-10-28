@@ -61,6 +61,30 @@ class TestEdgeCases extends Test {
         async.done();
     }
 
+    function testTrimsDecodedWhitespaceInText(async:Async) {
+        for (text in [" Example &#x0D;\n", "&#32;&#9;Example&#xA;&#13;", " \tExample \r\n"]) {
+            var node = XmlNode.fromString("<root>" + text + "</root>");
+            Assert.equals("Example", node.nodeValue);
+        }
+
+        async.done();
+    }
+
+    function testPreservesInternalAndAttributeWhitespace(async:Async) {
+        var node = XmlNode.fromString("<root value='&#x0D; Example &#9;'>&#32;A&#32;&#9;B&#x0D;</root>");
+        Assert.equals("A \tB", node.nodeValue);
+        Assert.equals("\r Example \t", node.attributes.get("value"));
+
+        async.done();
+    }
+
+    function testDecodedWhitespaceOnlyText(async:Async) {
+        var node = XmlNode.fromString("<root>&#32;&#9;&#x0D;\n</root>");
+        Assert.isNull(node.nodeValue);
+
+        async.done();
+    }
+
     function testAllowsRawLessThanInQuotedAttribute(async:Async) {
         var xmlString = "<root attr=\"if (item.age < 99) item.age += 5\"/>";
         var node = XmlNode.fromString(xmlString);
