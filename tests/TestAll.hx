@@ -16,6 +16,7 @@ class TestAll {
         runner.addCase(new TestEdgeCases());
         runner.addCase(new TestComments());
         runner.addCase(new TestProlog());
+        runner.addCase(new TestMixedContent());
         runner.addCase(new TestMemory());
 
         Report.create(runner, SuccessResultsDisplayMode.AlwaysShowSuccessResults, HeaderDisplayMode.NeverShowHeader);

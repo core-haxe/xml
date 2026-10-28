@@ -69,7 +69,7 @@ private enum abstract Token(Int) from Int to Int {
 private enum State {
     ParserStart;
     NodeStart;
-    IgnoreWhitespace(next:State);
+    SelfClosingEnd;
     ReadNodeName;
     NodeAttributes;
     AttrName;
@@ -84,7 +84,8 @@ private enum State {
 // Parser
 // ------------------------
 class XmlParser {
-    public static function parse(input:Input, onEvent:XmlEvent->Void, trackPositions:Null<Bool> = null):Void {
+    // Tree builders can preserve decoded text and apply leaf trimming once the element is complete.
+    public static function parse(input:Input, onEvent:XmlEvent->Void, trackPositions:Null<Bool> = null, preserveText:Bool = false):Void {
         var positionsEnabled:Bool = resolveTrackPositions(trackPositions);
 
         var eof = false;
@@ -247,6 +248,7 @@ class XmlParser {
                                     }));
                                 }
                                 sb.reset();
+                                textStartPos = -1;
                                 instructionQuestionMark = false;
                                 state = stack.length > 0 ? NodeText : ParserStart;
                             } else {
@@ -260,17 +262,13 @@ class XmlParser {
                                 }
                             }
 
-                        case IgnoreWhitespace(next):
-                            switch (t) {
-                                case Token.NewLine | Token.LineFeed | Token.Tab | Token.Space:
-                                    // skip
-                                default:
-                                    sb.reset();
-                                    // we re-enter with this char as first char of next state:
-                                    // record a sensible start for that next state in its handler
-                                    sb.addChar(c);
-                                    state = next;
+                        case SelfClosingEnd:
+                            if (t != Token.GreaterThan) {
+                                error('Expected > after / in self-closing tag', line, column);
                             }
+                            sb.reset();
+                            textStartPos = -1;
+                            state = stack.length > 0 ? NodeText : ParserStart;
 
                         case ReadNodeName:
                             switch (t) {
@@ -338,7 +336,7 @@ class XmlParser {
                                         endOffset: currentPos
                                     }));
 
-                                    state = IgnoreWhitespace(ParserStart);
+                                    state = SelfClosingEnd;
 
                                 case _:
                                     error('Unexpected token in tag name: ' + String.fromCharCode(c), line, column);
@@ -360,8 +358,8 @@ class XmlParser {
 
                                 case Token.ForwardSlash:
                                     // self-closing shorthand: emit EndElement for the node (range from last recorded token start to current char)
-                                    var parent = stack.length > 0 ? stack[stack.length - 1] : null;
-                                    var depth = stack.length;
+                                    var parent = stack.length > 1 ? stack[stack.length - 2] : null;
+                                    var depth = stack.length - 1;
                                     onEvent(EndElement(nodeName, parent, depth, !positionsEnabled ? null : {
                                         startLine: tokenStartLine,
                                         startColumn: tokenStartColumn,
@@ -371,7 +369,7 @@ class XmlParser {
                                         endOffset: currentPos + 1 // include '/' char
                                     }));
                                     stack.pop();
-                                    state = IgnoreWhitespace(ParserStart);
+                                    state = SelfClosingEnd;
 
                                 case _:
                                     // ignore whitespace already handled above
@@ -477,7 +475,8 @@ class XmlParser {
                                 if (sb.length > 0) {
                                     var parent = stack.length > 0 ? stack[stack.length - 1] : null;
                                     var depth = stack.length - 1;
-                                    var s = StringTools.trim(decodeEntities(sb.toString()));
+                                    var s = decodeEntities(sb.toString());
+                                    if (!preserveText) s = StringTools.trim(s);
                                     if (s.length > 0) {
                                         // text start was recorded when first char appended; if not recorded (unlikely), fallback to currentPos - sb.length
                                         var startOff = textStartPos >= 0 ? textStartPos : (currentPos - sb.length);
@@ -541,7 +540,9 @@ class XmlParser {
                                     }));
 
                                     stack.pop();
-                                    state = ParserStart;
+                                    sb.reset();
+                                    textStartPos = -1;
+                                    state = stack.length > 0 ? NodeText : ParserStart;
 
                                 case _:
                                     error('Unexpected token in closing tag', line, column, tokenStartPos, currentPos + 1);
@@ -582,7 +583,8 @@ class XmlParser {
                                         endOffset: currentPos + 1
                                     }));
                                     sb.reset();
-                                    state = ParserStart;
+                                    textStartPos = -1;
+                                    state = stack.length > 0 ? NodeText : ParserStart;
                                 } else {
                                     commentDashCount = 2;
                                 }
@@ -606,6 +608,8 @@ class XmlParser {
                 error('Unterminated attribute value', line, column);
             case ProcessingInstructionText:
                 error('Unterminated processing instruction or XML declaration', line, column);
+            case SelfClosingEnd:
+                error('Unterminated self-closing tag', line, column);
             case _:
         }
 
@@ -781,6 +785,10 @@ class XmlParser {
             return null;
         }
 
+        #if js
+        // Bytes.getString uses BOM-aware decoding on JS, which would discard U+FEFF.
+        return js.Syntax.code("String.fromCodePoint({0})", code);
+        #else
         var bytes = Bytes.alloc(4);
         var size:Int;
 
@@ -805,6 +813,7 @@ class XmlParser {
         }
 
         return bytes.getString(0, size);
+        #end
     }
 
     private static function numericEntityDigit(code:Int):Int {

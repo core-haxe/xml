@@ -4,7 +4,8 @@ import haxe.io.Bytes;
 
 class XmlStringBuf {
     #if js
-    private var decoder = new js.html.TextDecoder("utf-8");
+    // Tokens are document content; only XmlParser consumes the stream's leading BOM.
+    private var decoder = new js.html.TextDecoder("utf-8", {ignoreBOM: true});
     #end
 
     private var buffer:Bytes;

@@ -29,6 +29,61 @@ class TestProlog extends Test {
         }
     }
 
+    function testLiteralBomInTextAndAttributes() {
+        for (value in ["\uFEFFHello", "He\uFEFFllo", "Hello\uFEFF", "\uFEFF\uFEFFHello\uFEFF", "\uFEFF"]) {
+            var body = '<root first="' + value + '" second="' + value + '"><a>' + value + '</a><b>' + value + '</b></root>';
+            var node = XmlNode.fromString(body, false);
+            Assert.equals(value, node.attributes.get("first"));
+            Assert.equals(value, node.attributes.get("second"));
+            Assert.equals(value, node.children[0].nodeValue);
+            Assert.equals(value, node.children[1].nodeValue);
+        }
+    }
+
+    function testNumericBomInTextAndAttributes() {
+        var samples = [
+            {encoded: "&#xFEFF;", expected: "\uFEFF"},
+            {encoded: "&#65279;", expected: "\uFEFF"},
+            {encoded: "&#xFEFF;Hello&#65279;", expected: "\uFEFFHello\uFEFF"},
+            {encoded: "A&#xFEFF;B&#65279;C", expected: "A\uFEFFB\uFEFFC"},
+            {encoded: "&#xFEFF;&#x1F600;&#65279;", expected: "\uFEFF😀\uFEFF"}
+        ];
+        for (sample in samples) {
+            var node = XmlNode.fromString('<root value="' + sample.encoded + '">' + sample.encoded + '</root>', false);
+            Assert.equals(sample.expected, node.attributes.get("value"));
+            Assert.equals(sample.expected, node.nodeValue);
+        }
+    }
+
+    function testDocumentBomWithEmbeddedBomAcrossShortReads() {
+        var body = "\uFEFF<?xml version='1.0'?><root value='\uFEFF&#xFEFF;'>\uFEFFleft<child/>&#65279;right\uFEFF</root>";
+        for (chunkSize in [1, 2, 3, 5, 4096]) {
+            var node = XmlNode.parse(new ChunkedBytesInput(Bytes.ofString(body), chunkSize), false);
+            Assert.equals("root", node.nodeName);
+            Assert.equals("\uFEFF\uFEFF", node.attributes.get("value"));
+            Assert.equals("\uFEFFleft\uFEFFright\uFEFF", node.nodeValue);
+            Assert.equals(1, node.children.length);
+
+            for (preserveText in [false, true]) {
+                var texts:Array<String> = [];
+                var attributes = 0;
+                XmlParser.parse(new ChunkedBytesInput(Bytes.ofString(body), chunkSize), event -> {
+                    switch (event) {
+                        case Attribute(name, value, _, _, _):
+                            attributes++;
+                            Assert.equals("value", name);
+                            Assert.equals("\uFEFF\uFEFF", value);
+                        case TextNode(text, _, _, _):
+                            texts.push(text);
+                        case _:
+                    }
+                }, false, preserveText);
+                Assert.equals(1, attributes);
+                Assert.same(["\uFEFFleft", "\uFEFFright\uFEFF"], texts);
+            }
+        }
+    }
+
     function testBomAndInstructionsAcrossShortReads() {
         var body = "\uFEFF<?xml version='1.0' encoding='utf-8'?><?before Grüße?><root><?inside?>tail</root><?after?>";
         for (chunkSize in [1, 2, 3, 5]) {
