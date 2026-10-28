@@ -77,6 +77,7 @@ private enum State {
     NodeText;
     EndNodeName;
     CommentText;
+    ProcessingInstructionText;
 }
 
 // ------------------------
@@ -130,6 +131,9 @@ class XmlParser {
         var textStartColumn:Int = 0;
 
         var commentDashCount:Int = 0;
+        var instructionQuestionMark:Bool = false;
+        var bomBytesRemaining:Int = 0;
+        var documentStartPos:Int = 0;
 
         while (!eof) {
             try {
@@ -138,6 +142,23 @@ class XmlParser {
                 for (i in 0...n) {
                     var currentPos = absPos + i; // 0-based index of this character in the whole stream
                     var c = Bytes.fastGet(bufferData, i);
+
+                    // Consume an optional UTF-8 signature only at the start of the stream.
+                    // Keep this state across reads, even when the input returns one byte at a time.
+                    if (currentPos == 0 && c == 0xEF) {
+                        bomBytesRemaining = 2;
+                        documentStartPos = 3;
+                        continue;
+                    }
+                    if (bomBytesRemaining > 0) {
+                        var expected = bomBytesRemaining == 2 ? 0xBB : 0xBF;
+                        if (c != expected) {
+                            error('Invalid UTF-8 byte order mark', line, column + 1);
+                        }
+                        bomBytesRemaining--;
+                        continue;
+                    }
+
                     var t = toToken(c);
 
                     // save last char's line/column
@@ -185,11 +206,58 @@ class XmlParser {
                                     state = CommentText;
 
                                 case Token.QuestionMark:
-                                    // TODO: PI
-                                    state = IgnoreWhitespace(ParserStart);
+                                    sb.reset();
+                                    instructionQuestionMark = false;
+                                    state = ProcessingInstructionText;
 
                                 case _:
                                     error('Unexpected token at start of node: ' + String.fromCharCode(c), line, column);
+                            }
+
+                        case ProcessingInstructionText:
+                            if (instructionQuestionMark && t == Token.GreaterThan) {
+                                var instruction = sb.toString();
+                                var targetEnd = 0;
+                                while (targetEnd < instruction.length && !isXmlWhitespace(instruction.charCodeAt(targetEnd))) {
+                                    targetEnd++;
+                                }
+                                var target = instruction.substr(0, targetEnd);
+                                if (!isProcessingInstructionTarget(target)) {
+                                    error('Invalid processing instruction target', line, column);
+                                }
+
+                                if (target.toLowerCase() == "xml") {
+                                    if (target != "xml" || tokenStartPos != documentStartPos || !xmlDeclarationPattern.match(instruction)) {
+                                        error('Invalid XML declaration', line, column);
+                                    }
+                                    // The XML declaration describes the document, rather than being a PI node.
+                                } else {
+                                    var dataStart = targetEnd;
+                                    while (dataStart < instruction.length && isXmlWhitespace(instruction.charCodeAt(dataStart))) {
+                                        dataStart++;
+                                    }
+                                    var parent = stack.length > 0 ? stack[stack.length - 1] : null;
+                                    onEvent(ProcessingInstruction(target, instruction.substr(dataStart), parent, stack.length, !positionsEnabled ? null : {
+                                        startLine: tokenStartLine,
+                                        startColumn: tokenStartColumn,
+                                        endLine: line,
+                                        endColumn: column,
+                                        startOffset: tokenStartPos,
+                                        endOffset: currentPos + 1
+                                    }));
+                                }
+                                sb.reset();
+                                instructionQuestionMark = false;
+                                state = stack.length > 0 ? NodeText : ParserStart;
+                            } else {
+                                // A question mark belongs to the data unless the next byte is '>'.
+                                if (instructionQuestionMark) {
+                                    sb.addChar('?'.code);
+                                }
+                                instructionQuestionMark = t == Token.QuestionMark;
+                                if (!instructionQuestionMark) {
+                                    sb.addChar(c);
+                                }
                             }
 
                         case IgnoreWhitespace(next):
@@ -425,6 +493,9 @@ class XmlParser {
                                     }
                                     sb.reset();
                                 }
+                                tokenStartPos = currentPos;
+                                tokenStartLine = line;
+                                tokenStartColumn = column;
                                 state = NodeStart;
                             } else {
                                 if (sb.length == 0) {
@@ -528,9 +599,14 @@ class XmlParser {
         }
 
         // EOF checks
+        if (bomBytesRemaining > 0) {
+            error('Incomplete UTF-8 byte order mark', line, column + 1);
+        }
         switch (state) {
             case AttrValue(_):
                 error('Unterminated attribute value', line, column);
+            case ProcessingInstructionText:
+                error('Unterminated processing instruction or XML declaration', line, column);
             case _:
         }
 
@@ -538,6 +614,33 @@ class XmlParser {
             error('Unclosed tag: ' + stack[stack.length - 1], line, column);
         }
     }
+
+    private static inline function isXmlWhitespace(c:Int):Bool {
+        return c == ' '.code || c == '\t'.code || c == '\r'.code || c == '\n'.code;
+    }
+
+    private static function isProcessingInstructionTarget(target:String):Bool {
+        if (target.length == 0) {
+            return false;
+        }
+        for (i in 0...target.length) {
+            var c = target.charCodeAt(i);
+            if (c >= 0x80 || (c >= 'a'.code && c <= 'z'.code) || (c >= 'A'.code && c <= 'Z'.code) || c == '_'.code || c == ':'.code) {
+                continue;
+            }
+            if (i > 0 && ((c >= '0'.code && c <= '9'.code) || c == '-'.code || c == '.'.code)) {
+                continue;
+            }
+            return false;
+        }
+        return true;
+    }
+
+    private static var xmlDeclarationPattern = new EReg(
+        "^xml[ \t\r\n]+version[ \t\r\n]*=[ \t\r\n]*(\"1\\.[0-9]+\"|'1\\.[0-9]+')" +
+        "([ \t\r\n]+encoding[ \t\r\n]*=[ \t\r\n]*(\"[A-Za-z][A-Za-z0-9._-]*\"|'[A-Za-z][A-Za-z0-9._-]*'))?" +
+        "([ \t\r\n]+standalone[ \t\r\n]*=[ \t\r\n]*(\"(yes|no)\"|'(yes|no)'))?[ \t\r\n]*$", ""
+    );
 
     private static function toToken(c:Int):Token {
         if (tokenMap == null) {
